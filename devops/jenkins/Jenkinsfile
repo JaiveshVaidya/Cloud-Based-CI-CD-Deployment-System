@@ -1,0 +1,101 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_ACCOUNT_ID = '123456789012'
+        AWS_DEFAULT_REGION = 'us-east-1'
+        IMAGE_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+        BACKEND_IMAGE = 'cicd-backend'
+        FRONTEND_IMAGE = 'cicd-frontend'
+        K8S_NAMESPACE = 'default'
+    }
+
+    options {
+        timeout(time: 1, unit: 'HOURS')
+        ansiColor('xterm')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Backend Unit Tests') {
+            steps {
+                dir('backend') {
+                    sh 'chmod +x mvnw'
+                    sh './mvnw clean test'
+                }
+            }
+            post {
+                always {
+                    junit 'backend/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Build & Package Backend') {
+            steps {
+                dir('backend') {
+                    sh './mvnw package -DskipTests'
+                }
+            }
+        }
+
+        stage('Build Frontend') {
+            steps {
+                dir('frontend') {
+                    sh 'npm ci'
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Build & Push Docker Images') {
+            steps {
+                script {
+                    // Log in to Amazon ECR
+                    sh "aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${IMAGE_REGISTRY}"
+                    
+                    // Build and Push Backend
+                    sh "docker build -t ${IMAGE_REGISTRY}/${BACKEND_IMAGE}:${BUILD_NUMBER} -t ${IMAGE_REGISTRY}/${BACKEND_IMAGE}:latest -f devops/docker/Dockerfile.backend backend/"
+                    sh "docker push ${IMAGE_REGISTRY}/${BACKEND_IMAGE}:${BUILD_NUMBER}"
+                    sh "docker push ${IMAGE_REGISTRY}/${BACKEND_IMAGE}:latest"
+
+                    // Build and Push Frontend
+                    sh "docker build -t ${IMAGE_REGISTRY}/${FRONTEND_IMAGE}:${BUILD_NUMBER} -t ${IMAGE_REGISTRY}/${FRONTEND_IMAGE}:latest -f devops/docker/Dockerfile.frontend frontend/"
+                    sh "docker push ${IMAGE_REGISTRY}/${FRONTEND_IMAGE}:${BUILD_NUMBER}"
+                    sh "docker push ${IMAGE_REGISTRY}/${FRONTEND_IMAGE}:latest"
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    // Deploy using Helm
+                    sh "helm upgrade --install cicd-platform ./devops/helm \\
+                        --namespace ${K8S_NAMESPACE} \\
+                        --set image.registry=${IMAGE_REGISTRY} \\
+                        --set image.backend.tag=${BUILD_NUMBER} \\
+                        --set image.frontend.tag=${BUILD_NUMBER}"
+                    
+                    // Verify rollout status
+                    sh "kubectl rollout status deployment/cicd-platform-backend -n ${K8S_NAMESPACE}"
+                    sh "kubectl rollout status deployment/cicd-platform-frontend -n ${K8S_NAMESPACE}"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Deployment completed successfully!'
+        }
+        failure {
+            echo 'Deployment failed. Please check build logs.'
+        }
+    }
+}

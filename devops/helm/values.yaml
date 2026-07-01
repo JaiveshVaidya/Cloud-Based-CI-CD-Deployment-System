@@ -1,0 +1,50 @@
+# Default values for cicd-platform.
+# This is a YAML-formatted file.
+
+replicaCount: 2
+
+image:
+  registry: 123456789012.dkr.ecr.us-east-1.amazonaws.com
+  backend:
+    repository: cicd-backend
+    tag: latest
+  frontend:
+    repository: cicd-frontend
+    tag: latest
+  pullPolicy: Always
+
+service:
+  backend:
+    port: 8080
+    type: ClusterIP
+  frontend:
+    port: 80
+    type: NodePort
+
+ingress:
+  enabled: true
+  className: nginx
+  host: cicd-platform.local
+
+# Database Configuration (Postgres Profile setup)
+postgres:
+  host: postgres-service
+  port: 5432
+  database: cicddb
+  secretName: database-credentials
+
+resources:
+  backend:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  frontend:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi

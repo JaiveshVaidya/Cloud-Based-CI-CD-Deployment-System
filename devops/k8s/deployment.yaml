@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cicd-backend
+  namespace: default
+  labels:
+    app: cicd-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cicd-backend
+  template:
+    metadata:
+      labels:
+        app: cicd-backend
+    spec:
+      containers:
+      - name: backend
+        image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/cicd-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: DB_HOST
+          value: "postgres-service"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "cicddb"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: password
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cicd-frontend
+  namespace: default
+  labels:
+    app: cicd-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cicd-frontend
+  template:
+    metadata:
+      labels:
+        app: cicd-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/cicd-frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+          requests:
+            cpu: "100m"
+            memory: "128Mi"

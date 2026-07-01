@@ -1,0 +1,34 @@
+# Stage 1: Build environment
+FROM eclipse-temurin:21-jdk-jammy AS build
+WORKDIR /app
+
+# Copy Maven Wrapper & configuration files
+COPY .mvn/ .mvn/
+COPY mvnw pom.xml ./
+RUN chmod +x mvnw
+
+# Resolve dependencies (cached layer)
+RUN ./mvnw dependency:go-offline -B
+
+# Copy src and compile
+COPY src/ src/
+RUN ./mvnw package -DskipTests -B
+
+# Stage 2: Hardened Alpine Runtime
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+# Create a non-root group and user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Copy compiled artifact from Stage 1
+COPY --from=build /app/target/platform-*.jar app.jar
+
+# Define permission constraints
+RUN chown -R appuser:appgroup /app
+USER appuser
+
+EXPOSE 8080
+ENV SPRING_PROFILES_ACTIVE=prod
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
