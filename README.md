@@ -1,4 +1,4 @@
-# Antigravity CI/CD Deployment Platform ⭐⭐⭐⭐⭐
+# Antigravity CI/CD Deployment Platform 
 
 Antigravity is a cloud-native, micro CI/CD engine designed to automatically build, test, containerize, and deploy code repositories. Built as a mini version of Jenkins and GitHub Actions, it offers developers a visual dashboard to connect repositories, trigger pipelines, view ANSI-colorized build logs live via WebSockets, and monitor system resource health along with Kubernetes pod structures.
 
